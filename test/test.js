@@ -158,11 +158,11 @@ function prepareTest() {
         return fs.remove(localRepositoriesPath + "/" + directory);
       else return directory;
     })
-      .map(directory => {
-        return fs.copy(
-          localRepositoriesPath + "/" + directory,
-          localRepositoriesPath + "/" + directory.split("_").shift()
-        );
+      .map(async directory => {
+        const distRepo = localRepositoriesPath + "/" + directory;
+        const unpackRepo = distRepo.split("_").shift();
+        await fs.copy(distRepo, unpackRepo);
+        return fs.move(unpackRepo+'/.git_dist', unpackRepo+'/.git');
       })
       .then(async _ => {
         if (await fs.exists("test/remoteRepository"))
