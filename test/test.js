@@ -9,61 +9,57 @@ const chai = require("chai");
 const expect = chai.expect;
 const should = chai.should();
 const ncp = require("ncp");
+const path = require("path");
+
+const localRepositoriesPath = path.resolve("test", "localRepositories");
 describe(`test`, function() {
   before(done => {
-    fs
-      .copy("test/remoteRepository_dist", "test/remoteRepository")
-      .then(_ => {
-        return fs.copy(
-          "test/localRepository/.git_dist",
-          "test/localRepository/.git"
-        );
-      })
-      .then(_ => {
-        return fs.copy(
-          "test/localRepositoryEmpty/.git_dist",
-          "test/localRepositoryEmpty/.git"
-        );
-      })
-      .then(_ => {
-        return fs.copy(
-          "test/localRepositoryWithoutRemote/.git_dist",
-          "test/localRepositoryWithoutRemote/.git"
-        );
-      })
-      .then(done);
+    prepareTest().then(_ => done());
   });
+
+  after(done => {
+    removeSession().then(_ => done());
+  });
+
   describe(`${pkg.name}/index.js`, function() {
     describe("#init", function() {
-      it("should return error when git is not found", async function() {
-        expect(
-          _ => new GitManager("path/to/an/inexistant/repository/.git")
-        ).to.throw();
+      it("should return error when git is not found", function() {
+        expect(_ => new GitManager("inexistant/repository")).to.throw();
       });
-      it("should be initialized whend a repository is found", async function() {
-        expect(_ => new GitManager("test/localRepository/.git")).to.not.throw();
+      it("should be initialized when a repository is found", function() {
+        expect(
+          _ => new GitManager(`${localRepositoriesPath}/common`)
+        ).to.not.throw();
+      });
+      it("should take current directory when no argument specified", function() {
+        try {
+          const git = new GitManager();
+          expect(git.gitLocation).equal(path.resolve("./"));
+        } catch (error) {}
       });
     });
   });
 
   describe(`${pkg.name}/_local.js`, function() {
     describe("#branch", function() {
-      const gitmanager = new GitManager("test/localRepository/.git");
       it("should return the current branch", async function() {
+        const gitmanager = new GitManager(`${localRepositoriesPath}/common`);
         expect(await gitmanager.local.branch()).equal("master");
       });
     });
     describe("#commit", function() {
-      const gitmanagerWithRemote = new GitManager("test/localRepository/.git");
       it("should return the last commit hash", async function() {
+        const gitmanagerWithRemote = new GitManager(
+          `${localRepositoriesPath}/common`
+        );
         expect(await gitmanagerWithRemote.local.commit()).equal(
           "f497957c70716ae91fc03319b9daeadb16940775"
         );
       });
     });
     describe("#getParentFromHash", function() {
-      const git = new GitManager("test/localRepository/.git");
       it("should return the parent of the commit", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/common`);
         expect(
           await git.local.parentFromHash(
             "f497957c70716ae91fc03319b9daeadb16940775"
@@ -74,29 +70,116 @@ describe(`test`, function() {
   });
 
   describe(`${pkg.name}/_remote.js`, function() {
-    describe("#remoteBranch", function() {
-      const gitmanagerWithRemote = new GitManager("test/localRepository/.git");
+    describe("#branch", function() {
       it("should return the current branch on the remote", async function() {
-        expect(await gitmanagerWithRemote.remote.remoteBranch("origin")).equal(
-          "master"
-        );
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.remote.branch("origin")).equal("master");
       });
-      const gitmanagerWithoutRemote = new GitManager(
-        "test/localRepositoryWithoutRemote/.git"
-      );
-      it("should throw error when repository don't have remote", function(done) {
-        gitmanagerWithoutRemote.remote
-          .remoteBranch("origin")
-          .catch(err => done());
+      it("should take origin remote", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.remote.branch()).equal("master");
+      });
+      it("should throw error when no remote", function(done) {
+        const git = new GitManager(`${localRepositoriesPath}/withoutRemote`);
+        git.remote.branch("origin").catch(err => done());
       });
     });
-    describe("#remoteCommit", function() {
-      const gitmanagerWithRemote = new GitManager("test/localRepository/.git");
+    describe("#commit", function() {
       it("should return the last commit hash on remote", async function() {
-        expect(await gitmanagerWithRemote.remote.remoteCommit("origin")).equal(
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.remote.commit("origin")).equal(
           "f497957c70716ae91fc03319b9daeadb16940775"
         );
       });
     });
+    describe("#fetch", function() {
+      it("should fetch", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.remote.fetch()).equal("");
+      });
+      it("should return error when no remote", function(done) {
+        const git = new GitManager(`${localRepositoriesPath}/withoutRemote`);
+        git.remote.fetch().catch(err => done());
+      });
+    });
+    describe("#status", function() {
+      it("should say update", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.remote.status()).equal(0);
+      });
+      it("should say to pull", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/pull`);
+        expect(await git.remote.status()).equal(-1);
+      });
+      it("should say to push", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/push`);
+        expect(await git.remote.status()).equal(1);
+      });
+    });
+    describe("#pull", function() {
+      it("should say to pull", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/pull`);
+        expect(await git.remote.status()).equal(-1);
+      });
+      it("should pull the repository", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/pull`);
+        expect(await git.remote.pull("master")).equal(1);
+      });
+      it("should pull the repository when update", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.remote.pull("master")).equal(1);
+      });
+      it("should not pull when repo is in conflict", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/cannotPull`);
+        expect(await git.remote.pull("master")).equal(0);
+      });
+    });
+    describe("#push", function() {
+      it("should say to push", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/push`);
+        expect(await git.remote.status()).equal(1);
+      });
+      it("should push on repository", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/push`);
+        expect(await git.remote.push("master")).equal(1);
+      });
+      it("should not push on repository when conflict", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/cannotPush`);
+        expect(await git.remote.push("master")).equal(0);
+      });
+    });
   });
 });
+
+function prepareTest() {
+  return fs.readdir(localRepositoriesPath).then(async directories => {
+    return Promise.filter(directories, async directory => {
+      if (!directory.includes("_dist"))
+        return fs.remove(localRepositoriesPath + "/" + directory);
+      else return directory;
+    })
+      .map(directory => {
+        return fs.copy(
+          localRepositoriesPath + "/" + directory,
+          localRepositoriesPath + "/" + directory.split("_").shift()
+        );
+      })
+      .then(async _ => {
+        if (await fs.exists("test/remoteRepository"))
+          await fs.remove("test/remoteRepository");
+        return fs.copy("test/remoteRepository_dist", "test/remoteRepository");
+      });
+  });
+}
+
+function removeSession() {
+  return fs.readdir(localRepositoriesPath).then(async directories => {
+    return Promise.filter(directories, async directory => {
+      if (!directory.includes("_dist"))
+        return fs.remove(localRepositoriesPath + "/" + directory);
+    }).then(async _ => {
+      if (await fs.exists("test/remoteRepository"))
+        await fs.remove("test/remoteRepository");
+    });
+  });
+}
