@@ -9,6 +9,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const should = chai.should();
 const ncp = require("ncp");
+const untar = require("untar");
 const path = require("path");
 
 const localRepositoriesPath = path.resolve("test", "localRepositories");
