@@ -77,6 +77,16 @@ describe(`test`, function() {
         ]);
       });
     });
+    describe("#checkout", function() {
+      it("should create a branch", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.local.checkout("thirdBranch")).equal(1);
+      });
+      it("should checkout master", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.local.checkout("master")).equal(1);
+      });
+    });
   });
 
   describe(`${pkg.name}/_remote.js`, function() {
@@ -161,7 +171,7 @@ describe(`test`, function() {
     describe("#branchs", function() {
       it("should return list of remote branchs", async function() {
         const git = new GitManager(`${localRepositoriesPath}/common`);
-        expect(await git.local.branches()).to.deep.equal(["master", "secondBranch"]);
+        expect(await git.remote.branches()).to.deep.equal(["master", "secondBranch"]);
       });
     });
   });
