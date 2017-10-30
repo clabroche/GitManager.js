@@ -68,6 +68,15 @@ describe(`test`, function() {
         ).equal("9d1fb8e405e261100bb227b4c7fceeb5d961a905");
       });
     });
+    describe("#branchs", function() {
+      it("should return list of local branchs", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.remote.branches("origin")).to.deep.equal([
+          "master",
+          "secondBranch"
+        ]);
+      });
+    });
   });
 
   describe(`${pkg.name}/_remote.js`, function() {
@@ -147,6 +156,12 @@ describe(`test`, function() {
       it("should not push on repository when conflict", async function() {
         const git = new GitManager(`${localRepositoriesPath}/cannotPush`);
         expect(await git.remote.push("master")).equal(0);
+      });
+    });
+    describe("#branchs", function() {
+      it("should return list of remote branchs", async function() {
+        const git = new GitManager(`${localRepositoriesPath}/common`);
+        expect(await git.local.branches()).to.deep.equal(["master", "secondBranch"]);
       });
     });
   });
