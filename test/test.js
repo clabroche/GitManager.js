@@ -9,7 +9,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const should = chai.should();
 const ncp = require("ncp");
-const untar = require("untar");
+const unzip = require("unzip");
 const path = require("path");
 
 const localRepositoriesPath = path.resolve("test", "localRepositories");
@@ -153,34 +153,17 @@ describe(`test`, function() {
 });
 
 function prepareTest() {
-  return fs.readdir(localRepositoriesPath).then(async directories => {
-    return Promise.filter(directories, async directory => {
-      if (!directory.includes("_dist"))
-        return fs.remove(localRepositoriesPath + "/" + directory);
-      else return directory;
-    })
-      .map(async directory => {
-        const distRepo = localRepositoriesPath + "/" + directory;
-        const unpackRepo = distRepo.split("_").shift();
-        await fs.copy(distRepo, unpackRepo);
-        return fs.move(unpackRepo+'/.git_dist', unpackRepo+'/.git');
-      })
-      .then(async _ => {
-        if (await fs.exists("test/remoteRepository"))
-          await fs.remove("test/remoteRepository");
-        return fs.copy("test/remoteRepository_dist", "test/remoteRepository");
-      });
+  return new Promise((resolve, reject) => {
+    fs
+      .createReadStream("test/repositories.zip")
+      .pipe(unzip.Extract({ path: "test" }))
+      .on("close", _ => resolve());
   });
 }
 
 function removeSession() {
-  return fs.readdir(localRepositoriesPath).then(async directories => {
-    return Promise.filter(directories, async directory => {
-      if (!directory.includes("_dist"))
-        return fs.remove(localRepositoriesPath + "/" + directory);
-    }).then(async _ => {
-      if (await fs.exists("test/remoteRepository"))
-        await fs.remove("test/remoteRepository");
-    });
-  });
+  return Promise.join(
+    fs.remove("test/localRepositories"),
+    fs.remove("test/remoteRepository")
+  );
 }
